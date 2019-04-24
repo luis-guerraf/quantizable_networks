@@ -13,20 +13,22 @@ class LoaderMeta(type):
     def __new__(mcs, __name__, __bases__, __dict__):
         """Add include constructer to class."""
         # register the include constructor on the class
-        cls = super().__new__(mcs, __name__, __bases__, __dict__)
+        cls = super(LoaderMeta, mcs).__new__(mcs, __name__, __bases__, __dict__)
         cls.add_constructor('!include', cls.construct_include)
         return cls
 
 
-class Loader(yaml.Loader, metaclass=LoaderMeta):
+class Loader(yaml.Loader):
     """YAML Loader with `!include` constructor.
     """
+    __metaclass__ = LoaderMeta
+
     def __init__(self, stream):
         try:
             self._root = os.path.split(stream.name)[0]
         except AttributeError:
             self._root = os.path.curdir
-        super().__init__(stream)
+        super(Loader, self).__init__(stream)
 
     def construct_include(self, node):
         """Include file referenced at node."""

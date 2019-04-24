@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 from .slimmable_ops import SwitchableBatchNorm2d
-from .slimmable_ops import SlimmableConv2d, SlimmableLinear
+from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableQuantizableLinear
 from utils.config import FLAGS
 
 
@@ -29,13 +29,13 @@ class DepthwiseSeparableConv(nn.Module):
         assert stride in [1, 2]
 
         layers = [
-            SlimmableConv2d(
+            SlimmableQuantizableConv2d(
                 inp, inp, 3, stride, 1, groups_list=inp, bias=False),
-            SwitchableBatchNorm2d(inp),
+            SwitchableBatchNorm2d(inp, len(FLAGS.bitwidth_list)),
             nn.ReLU6(inplace=True),
 
-            SlimmableConv2d(inp, outp, 1, 1, 0, bias=False),
-            SwitchableBatchNorm2d(outp),
+            SlimmableQuantizableConv2d(inp, outp, 1, 1, 0, bias=False),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
             nn.ReLU6(inplace=True),
         ]
         self.body = nn.Sequential(*layers)
@@ -71,10 +71,10 @@ class Model(nn.Module):
         first_stride = 2
         self.features.append(
             nn.Sequential(
-                SlimmableConv2d(
+                SlimmableQuantizableConv2d(
                     [3 for _ in range(len(channels))], channels, 3,
                     first_stride, 1, bias=False),
-                SwitchableBatchNorm2d(channels),
+                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list)),
                 nn.ReLU6(inplace=True))
         )
 
@@ -100,7 +100,7 @@ class Model(nn.Module):
 
         # classifier
         self.classifier = nn.Sequential(
-            SlimmableLinear(
+            SlimmableQuantizableLinear(
                 self.outp,
                 [num_classes for _ in range(len(self.outp))]
             )

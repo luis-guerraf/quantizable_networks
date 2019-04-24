@@ -3,8 +3,41 @@ import math
 
 
 from .slimmable_ops import SwitchableBatchNorm2d
-from .slimmable_ops import SlimmableConv2d, SlimmableLinear
+from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableQuantizableLinear
 from utils.config import FLAGS
+
+class BasicBlock(nn.Module):
+    def __init__(self, inp, outp, stride):
+        super(BasicBlock, self).__init__()
+        assert stride in [1, 2]
+
+        layers = [
+            SlimmableQuantizableConv2d(inp, outp, 3, stride, 1, bias=False),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+            nn.ReLU(inplace=True),
+
+            SlimmableQuantizableConv2d(outp, outp, 3, 1, 1, bias=False),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+        ]
+        self.body = nn.Sequential(*layers)
+
+        self.residual_connection = stride == 1 and inp == outp
+        if not self.residual_connection:
+            self.shortcut = nn.Sequential(
+                SlimmableQuantizableConv2d(inp, outp, 1, stride=stride, bias=False),
+                SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+            )
+        self.post_relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        if self.residual_connection:
+            res = self.body(x)
+            res += x
+        else:
+            res = self.body(x)
+            res += self.shortcut(x)
+        res = self.post_relu(res)
+        return res
 
 
 class Block(nn.Module):
@@ -14,24 +47,24 @@ class Block(nn.Module):
 
         midp = [i//4 for i in outp]
         layers = [
-            SlimmableConv2d(inp, midp, 1, 1, 0, bias=False),
-            SwitchableBatchNorm2d(midp),
+            SlimmableQuantizableConv2d(inp, midp, 1, 1, 0, bias=False),
+            SwitchableBatchNorm2d(midp, len(FLAGS.bitwidth_list)),
             nn.ReLU(inplace=True),
 
-            SlimmableConv2d(midp, midp, 3, stride, 1, bias=False),
-            SwitchableBatchNorm2d(midp),
+            SlimmableQuantizableConv2d(midp, midp, 3, stride, 1, bias=False),
+            SwitchableBatchNorm2d(midp, len(FLAGS.bitwidth_list)),
             nn.ReLU(inplace=True),
 
-            SlimmableConv2d(midp, outp, 1, 1, 0, bias=False),
-            SwitchableBatchNorm2d(outp),
+            SlimmableQuantizableConv2d(midp, outp, 1, 1, 0, bias=False),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
         ]
         self.body = nn.Sequential(*layers)
 
         self.residual_connection = stride == 1 and inp == outp
         if not self.residual_connection:
             self.shortcut = nn.Sequential(
-                SlimmableConv2d(inp, outp, 1, stride=stride, bias=False),
-                SwitchableBatchNorm2d(outp),
+                SlimmableQuantizableConv2d(inp, outp, 1, stride=stride, bias=False),
+                SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
             )
         self.post_relu = nn.ReLU(inplace=True)
 
@@ -57,6 +90,8 @@ class Model(nn.Module):
         # setting of inverted residual blocks
         self.block_setting_dict = {
             # : [stage1, stage2, stage3, stage4]
+            18: [2, 2, 2, 2],
+            34: [3, 4, 6, 3],
             50: [3, 4, 6, 3],
             101: [3, 4, 23, 3],
             152: [3, 8, 36, 3],
@@ -67,25 +102,33 @@ class Model(nn.Module):
             int(64 * width_mult) for width_mult in FLAGS.width_mult_list]
         self.features.append(
             nn.Sequential(
-                SlimmableConv2d(
+                SlimmableQuantizableConv2d(
                     [3 for _ in range(len(channels))], channels, 7, 2, 3,
                     bias=False),
-                SwitchableBatchNorm2d(channels),
+                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list)),
                 nn.ReLU(inplace=True),
                 nn.MaxPool2d(3, 2, 1),
             )
         )
 
         # body
+        expansion = 1 if (FLAGS.depth == 18) or (FLAGS.depth == 34) else 4
+
         for stage_id, n in enumerate(self.block_setting):
             outp = [
-                int(feats[stage_id]*width_mult*4)
+                int(feats[stage_id]*width_mult*expansion)
                 for width_mult in FLAGS.width_mult_list]
             for i in range(n):
                 if i == 0 and stage_id != 0:
-                    self.features.append(Block(channels, outp, 2))
+                    if (FLAGS.depth == 18) or (FLAGS.depth == 34):
+                        self.features.append(BasicBlock(channels, outp, 2))
+                    else:
+                        self.features.append(Block(channels, outp, 2))
                 else:
-                    self.features.append(Block(channels, outp, 1))
+                    if (FLAGS.depth == 18) or (FLAGS.depth == 34):
+                        self.features.append(BasicBlock(channels, outp, 1))
+                    else:
+                        self.features.append(Block(channels, outp, 1))
                 channels = outp
 
         avg_pool_size = input_size//32
@@ -97,7 +140,7 @@ class Model(nn.Module):
         # classifier
         self.outp = channels
         self.classifier = nn.Sequential(
-            SlimmableLinear(
+            SlimmableQuantizableLinear(
                 self.outp,
                 [num_classes for _ in range(len(self.outp))]
             )

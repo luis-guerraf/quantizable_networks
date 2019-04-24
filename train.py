@@ -12,6 +12,14 @@ from utils.transforms import Lighting
 from utils.config import FLAGS
 from utils.meters import ScalarMeter, flush_scalar_meters
 
+if FLAGS.model == 'models.s_resnet':
+    save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_" + \
+                    '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" \
+                    + "_".join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
+else:
+    save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + "_" + \
+                    '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" \
+                    + "_".join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
 
 def get_model():
     """get model"""
@@ -59,6 +67,30 @@ def data_transforms():
             transforms.Normalize(mean=mean, std=std),
         ])
         test_transforms = val_transforms
+    elif FLAGS.data_transforms == 'cifar10':
+        train_transforms = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        val_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        test_transforms = val_transforms
+    elif FLAGS.data_transforms == 'cifar100':
+        train_transforms = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        val_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        test_transforms = val_transforms
     else:
         try:
             transforms_lib = importlib.import_module(FLAGS.data_transforms)
@@ -83,6 +115,30 @@ def dataset(train_transforms, val_transforms, test_transforms):
             os.path.join(FLAGS.dataset_dir, 'val'),
             transform=val_transforms)
         test_set = None
+    elif FLAGS.dataset == 'cifar10':
+        if not FLAGS.test_only:
+            train_set = datasets.CIFAR10(root=FLAGS.dataset_dir,
+                             train=True, transform=train_transforms,
+                             target_transform=None, download=False)
+        else:
+            train_set = None
+        val_set = datasets.CIFAR10(root=FLAGS.dataset_dir,
+                                     train=False, transform=val_transforms,
+                                     target_transform=None, download=False)
+
+        test_set = None
+    elif FLAGS.dataset == 'cifar100':
+        if not FLAGS.test_only:
+            train_set = datasets.CIFAR100(root=FLAGS.dataset_dir,
+                                         train=True, transform=train_transforms,
+                                         target_transform=None, download=False)
+        else:
+            train_set = None
+        val_set = datasets.CIFAR100(root=FLAGS.dataset_dir,
+                                   train=False, transform=val_transforms,
+                                   target_transform=None, download=False)
+
+        test_set = None
     else:
         try:
             dataset_lib = importlib.import_module(FLAGS.dataset)
@@ -96,7 +152,7 @@ def dataset(train_transforms, val_transforms, test_transforms):
 
 def data_loader(train_set, val_set, test_set):
     """get data loader"""
-    if FLAGS.data_loader == 'imagenet1k_basic':
+    if FLAGS.data_loader == 'imagenet1k_basic' or FLAGS.data_loader == 'cifar10' or FLAGS.data_loader == 'cifar100':
         if not FLAGS.test_only:
             train_loader = torch.utils.data.DataLoader(
                 train_set, batch_size=FLAGS.batch_size, shuffle=True,
@@ -201,13 +257,14 @@ def get_meters(phase):
     if getattr(FLAGS, 'slimmable_training', False):
         meters_all = {}
         for width_mult in FLAGS.width_mult_list:
-            meters = {}
-            meters['loss'] = ScalarMeter('{}_loss/{}'.format(
-                phase, str(width_mult)))
-            for k in FLAGS.topk:
-                meters['top{}_error'.format(k)] = ScalarMeter(
-                    '{}_top{}_error/{}'.format(phase, k, str(width_mult)))
-            meters_all[str(width_mult)] = meters
+            for bitwidth in FLAGS.bitwidth_list:
+                meters = {}
+                meters['loss'] = ScalarMeter('{}_loss/{}\t{}'.format(
+                    phase, str(width_mult), str(bitwidth)))
+                for k in FLAGS.topk:
+                    meters['top{}_error'.format(k)] = ScalarMeter(
+                        '{}_top{}_error/{}\t{}'.format(phase, k, str(width_mult), str(bitwidth)))
+                meters_all[str(width_mult)+str(bitwidth)] = meters
         meters = meters_all
     else:
         meters = {}
@@ -223,13 +280,14 @@ def profiling(model, use_cuda):
     print('Start model profiling, use_cuda:{}.'.format(use_cuda))
     if getattr(FLAGS, 'slimmable_training', False):
         for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
-            model.apply(
-                lambda m: setattr(m, 'width_mult', width_mult))
-            print('Model profiling with width mult {}x:'.format(width_mult))
-            verbose = width_mult == max(FLAGS.width_mult_list)
-            model_profiling(
-                model, FLAGS.image_size, FLAGS.image_size,
-                verbose=getattr(FLAGS, 'model_profiling_verbose', verbose))
+            for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
+                model.apply(lambda m: setattr(m, 'width_mult', width_mult))
+                model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
+                print('Model profiling with: {}x {}bits:'.format(width_mult, bitwidth))
+                verbose = (width_mult == max(FLAGS.width_mult_list)) and (bitwidth == max(FLAGS.bitwidth_list))
+                model_profiling(
+                    model, FLAGS.image_size, FLAGS.image_size,
+                    verbose=getattr(FLAGS, 'model_profiling_verbose', verbose))
     else:
         model_profiling(
             model, FLAGS.image_size, FLAGS.image_size,
@@ -263,12 +321,6 @@ def run_one_epoch(
         model.train()
     else:
         model.eval()
-    if getattr(FLAGS, 'slimmable_sample_training', False):
-        max_width = max(FLAGS.width_mult_list)
-        min_width = min(FLAGS.width_mult_list)
-        other_widths = FLAGS.width_mult_list.copy()
-        other_widths.remove(max_width)
-        other_widths.remove(min_width)
     if train and FLAGS.lr_scheduler == 'linear_decaying':
         linear_decaying_per_step = (
             FLAGS.lr/FLAGS.num_epochs/len(loader.dataset)*FLAGS.batch_size)
@@ -281,37 +333,49 @@ def run_one_epoch(
             optimizer.zero_grad()
             if getattr(FLAGS, 'slimmable_training', False):
                 for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
-                    model.apply(
-                        lambda m: setattr(m, 'width_mult', width_mult))
-                    loss = forward_loss(
-                        model, criterion, input, target,
-                        meters[str(width_mult)])
-                    loss.backward()
+                    for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
+                        model.apply(lambda m: setattr(m, 'width_mult', width_mult))
+                        model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
+                        loss = forward_loss(
+                            model, criterion, input, target,
+                            meters[str(width_mult)+str(bitwidth)])
+                        loss.backward()
             else:
-                loss = forward_loss(
+                loss, _ = forward_loss(
                     model, criterion, input, target, meters)
                 loss.backward()
+
+            # Optimize real value weights
+            for p in list(model.parameters()):
+                if hasattr(p,'org'):
+                    p.data.copy_(p.org)
             optimizer.step()
+            for p in list(model.parameters()):
+                if hasattr(p,'org'):
+                    p.org.copy_(p.data.clamp_(-1,1))
+
         else:
             if getattr(FLAGS, 'slimmable_training', False):
                 for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
-                    model.apply(
-                        lambda m: setattr(m, 'width_mult', width_mult))
-                    forward_loss(
-                        model, criterion, input, target,
-                        meters[str(width_mult)])
+                    for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
+                        model.apply(lambda m: setattr(m, 'width_mult', width_mult))
+                        model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
+                        forward_loss(
+                            model, criterion, input, target,
+                            meters[str(width_mult)+str(bitwidth)])
             else:
                 forward_loss(model, criterion, input, target, meters)
     if getattr(FLAGS, 'slimmable_training', False):
         for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
-            results = flush_scalar_meters(meters[str(width_mult)])
-            print('{:.1f}s\t{}\t{}\t{}/{}: '.format(
-                time.time() - t_start, phase, str(width_mult), epoch,
-                FLAGS.num_epochs) + ', '.join('{}: {:.3f}'.format(k, v)
-                                              for k, v in results.items()))
+            for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
+                results = flush_scalar_meters(meters[str(width_mult)+str(bitwidth)])
+                print('{:.1f}s\t{:7s}{:6s}{}\t{}/{}: '.format(
+                    time.time() - t_start, phase, str(width_mult), str(bitwidth), epoch,
+                    FLAGS.num_epochs) + ', '.join('{}: {:.3f}'.format(k, v)
+                                                    for k, v in results.items()))
     else:
         results = flush_scalar_meters(meters)
-        print('{:.1f}s\t{}\t{}/{}: '.format(
+        print('{:.1f}s\t{:7s}\t{}/{}: '.format(
             time.time() - t_start, phase, epoch, FLAGS.num_epochs) +
               ', '.join('{}: {:.3f}'.format(k, v) for k, v in results.items()))
     return results
@@ -347,9 +411,9 @@ def train_val_test():
         print('Loaded model {}.'.format(FLAGS.pretrained))
     optimizer = get_optimizer(model_wrapper)
     # check resume training
-    if os.path.exists(os.path.join(FLAGS.log_dir, 'latest_checkpoint.pt')):
+    if os.path.exists(os.path.join(FLAGS.log_dir, 'latest_checkpoint' + save_filename)):
         checkpoint = torch.load(
-            os.path.join(FLAGS.log_dir, 'latest_checkpoint.pt'))
+            os.path.join(FLAGS.log_dir, 'latest_checkpoint' + save_filename))
         model_wrapper.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         last_epoch = checkpoint['last_epoch']
@@ -367,7 +431,7 @@ def train_val_test():
         val_meters = get_meters('val')
         val_meters['best_val'] = ScalarMeter('best_val')
         # if start from scratch, print model and do profiling
-        print(model_wrapper)
+        # print(model_wrapper)
         if FLAGS.profiling:
             if 'gpu' in FLAGS.profiling:
                 profiling(model, use_cuda=True)
@@ -410,7 +474,7 @@ def train_val_test():
                 {
                     'model': model_wrapper.state_dict(),
                 },
-                os.path.join(FLAGS.log_dir, 'best_model.pt'))
+                os.path.join(FLAGS.log_dir, 'best_model' + save_filename))
             print('New best validation top1 error: {:.3f}'.format(best_val))
 
         # save latest checkpoint
@@ -422,7 +486,7 @@ def train_val_test():
                 'best_val': best_val,
                 'meters': (train_meters, val_meters),
             },
-            os.path.join(FLAGS.log_dir, 'latest_checkpoint.pt'))
+            os.path.join(FLAGS.log_dir, 'latest_checkpoint' + save_filename))
     return
 
 
