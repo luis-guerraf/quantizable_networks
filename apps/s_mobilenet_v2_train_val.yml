@@ -9,8 +9,8 @@ gpu_type: "nvidia-tesla-p100"
 dataset: imagenet1k
 data_transforms: imagenet1k_basic
 data_loader: imagenet1k_basic
-dataset_dir: data/imagenet
-data_loader_workers: 62
+dataset_dir: ../Datasets/IMAGENET/ImageNet_smallSize256
+data_loader_workers: 8
 
 # info
 num_classes: 1000
@@ -51,7 +51,7 @@ slimmable_training: True
 model: models.s_mobilenet_v2
 width_mult: 1.0
 width_mult_list: [0.35, 0.50, 0.75, 1.0]
-num_gpus_per_job: 4
+num_gpus_per_job: 1
 data_transforms: imagenet1k_mobile
 lr: 0.045
 lr_scheduler: exp_decaying
@@ -59,5 +59,5 @@ exp_decaying_lr_gamma: 0.98
 num_epochs: 480
 batch_size: 160
 # test pretrained
-test_only: True
-pretrained: logs/s_mobilenet_v2_0.35_0.5_0.75_1.0.pt
+#test_only: True
+#pretrained: logs/s_mobilenet_v2_0.35_0.5_0.75_1.0.pt
