@@ -6,10 +6,10 @@ memory_per_job: 380  # memory requirement each job need
 gpu_type: "nvidia-geforce-gtx-1080"
 
 # data
-dataset: imagenet1k
-data_transforms: imagenet1k_basic
-data_loader: imagenet1k_basic
-dataset_dir: ../Datasets/IMAGENET/ImageNet_smallSize256
+dataset: tiny_imagenet
+data_transforms: tiny_imagenet
+data_loader: tiny_imagenet
+dataset_dir: ../Datasets/IMAGENET/tiny-imagenet-200
 data_loader_workers: 8
 
 # info
@@ -40,7 +40,7 @@ test_only: False
 
 #
 random_seed: 1995
-batch_size: 96
+batch_size: 128
 model: ''
 reset_parameters: True
 
@@ -48,10 +48,10 @@ reset_parameters: True
 log_dir: logs/
 slimmable_training: True
 model: models.s_resnet
-depth: 50
+depth: 18
 width_mult: 1.0
 width_mult_list: [1.0]
-bitwidth_list: [2, 4, 8, 32]
+bitwidth_list: [32]
 num_gpus_per_job: 1
 # test pretrained
 #test_only: True

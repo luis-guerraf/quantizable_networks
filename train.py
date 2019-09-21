@@ -67,6 +67,27 @@ def data_transforms():
             transforms.Normalize(mean=mean, std=std),
         ])
         test_transforms = val_transforms
+    elif FLAGS.data_transforms == 'tiny_imagenet':
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        crop_scale = 0.08
+        jitter_param = 0.4
+        lighting_param = 0.1
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(64, scale=(crop_scale, 1.0)),
+            transforms.ColorJitter(
+                brightness=jitter_param, contrast=jitter_param,
+                saturation=jitter_param),
+            Lighting(lighting_param),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std),
+        ])
+        val_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std),
+        ])
+        test_transforms = val_transforms
     elif FLAGS.data_transforms == 'cifar10':
         train_transforms = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -104,7 +125,7 @@ def data_transforms():
 
 def dataset(train_transforms, val_transforms, test_transforms):
     """get dataset for classification"""
-    if FLAGS.dataset == 'imagenet1k':
+    if FLAGS.dataset == 'imagenet1k' or FLAGS.dataset == 'tiny_imagenet':
         if not FLAGS.test_only:
             train_set = datasets.ImageFolder(
                 os.path.join(FLAGS.dataset_dir, 'train'),
@@ -152,7 +173,8 @@ def dataset(train_transforms, val_transforms, test_transforms):
 
 def data_loader(train_set, val_set, test_set):
     """get data loader"""
-    if FLAGS.data_loader == 'imagenet1k_basic' or FLAGS.data_loader == 'cifar10' or FLAGS.data_loader == 'cifar100':
+    if FLAGS.data_loader == 'imagenet1k_basic' or FLAGS.data_loader == 'tiny_imagenet' or \
+            FLAGS.data_loader == 'cifar10' or FLAGS.data_loader == 'cifar100':
         if not FLAGS.test_only:
             train_loader = torch.utils.data.DataLoader(
                 train_set, batch_size=FLAGS.batch_size, shuffle=True,
