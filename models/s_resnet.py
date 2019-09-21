@@ -3,7 +3,7 @@ import math
 
 
 from .slimmable_ops import SwitchableBatchNorm2d
-from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableQuantizableLinear
+from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableQuantizableLinear, SlimmableLinear
 from utils.config import FLAGS
 
 class BasicBlock(nn.Module):
@@ -140,7 +140,7 @@ class Model(nn.Module):
         # classifier
         self.outp = channels
         self.classifier = nn.Sequential(
-            SlimmableQuantizableLinear(
+            SlimmableLinear(
                 self.outp,
                 [num_classes for _ in range(len(self.outp))]
             )

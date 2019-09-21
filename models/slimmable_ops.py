@@ -144,6 +144,7 @@ class SlimmableLinear(nn.Linear):
         self.in_features_list = in_features_list
         self.out_features_list = out_features_list
         self.width_mult = max(FLAGS.width_mult_list)
+        self.bitwidth = 0
 
     def forward(self, input):
         idx = FLAGS.width_mult_list.index(self.width_mult)
