@@ -352,7 +352,7 @@ def run_one_epoch(
             optimizer.step()
             for p in list(model.parameters()):
                 if hasattr(p,'org'):
-                    p.org.copy_(p.data.clamp_(-1,1))
+                    p.org.copy_(p.data)
 
         else:
             if getattr(FLAGS, 'slimmable_training', False):
