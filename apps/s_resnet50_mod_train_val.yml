@@ -52,6 +52,7 @@ depth: 18
 width_mult: 1.0
 width_mult_list: [1.0]
 bitwidth_list: [32]
+bitactiv_list: [2]
 num_gpus_per_job: 1
 # test pretrained
 #test_only: True

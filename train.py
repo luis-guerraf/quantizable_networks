@@ -15,10 +15,12 @@ from utils.meters import ScalarMeter, flush_scalar_meters
 if FLAGS.model == 'models.s_resnet':
     save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_" + \
                     '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" \
+                    '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
                     + "_".join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
 else:
     save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + "_" + \
                     '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" \
+                    '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
                     + "_".join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
 
 def get_model():
@@ -280,13 +282,14 @@ def get_meters(phase):
         meters_all = {}
         for width_mult in FLAGS.width_mult_list:
             for bitwidth in FLAGS.bitwidth_list:
-                meters = {}
-                meters['loss'] = ScalarMeter('{}_loss/{}\t{}'.format(
-                    phase, str(width_mult), str(bitwidth)))
-                for k in FLAGS.topk:
-                    meters['top{}_error'.format(k)] = ScalarMeter(
-                        '{}_top{}_error/{}\t{}'.format(phase, k, str(width_mult), str(bitwidth)))
-                meters_all[str(width_mult)+str(bitwidth)] = meters
+                for bitactiv in FLAGS.bitactiv_list:
+                    meters = {}
+                    meters['loss'] = ScalarMeter('{}_loss/{}\t{}\t{}'.format(
+                        phase, str(width_mult), str(bitwidth), str(bitactiv)))
+                    for k in FLAGS.topk:
+                        meters['top{}_error'.format(k)] = ScalarMeter(
+                            '{}_top{}_error/{}\t{}\t{}'.format(phase, k, str(width_mult), str(bitwidth), str(bitactiv)))
+                    meters_all[str(width_mult)+str(bitwidth)+str(bitactiv)] = meters
         meters = meters_all
     else:
         meters = {}
@@ -303,13 +306,16 @@ def profiling(model, use_cuda):
     if getattr(FLAGS, 'slimmable_training', False):
         for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
             for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
-                model.apply(lambda m: setattr(m, 'width_mult', width_mult))
-                model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
-                print('Model profiling with: {}x {}bits:'.format(width_mult, bitwidth))
-                verbose = (width_mult == max(FLAGS.width_mult_list)) and (bitwidth == max(FLAGS.bitwidth_list))
-                model_profiling(
-                    model, FLAGS.image_size, FLAGS.image_size,
-                    verbose=getattr(FLAGS, 'model_profiling_verbose', verbose))
+                for bitactiv in sorted(FLAGS.bitactiv_list, reverse=True):
+                    model.apply(lambda m: setattr(m, 'width_mult', width_mult))
+                    model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
+                    model.apply(lambda m: setattr(m, 'bitactiv', bitactiv))
+                    print('Model profiling with: {}x {}bits {}activ:'.format(width_mult, bitwidth, bitactiv))
+                    verbose = (width_mult == max(FLAGS.width_mult_list)) and (bitwidth == max(FLAGS.bitwidth_list)) and \
+                                (bitactiv == max(FLAGS.bitactiv_list))
+                    model_profiling(
+                        model, FLAGS.image_size, FLAGS.image_size,
+                        verbose=getattr(FLAGS, 'model_profiling_verbose', verbose))
     else:
         model_profiling(
             model, FLAGS.image_size, FLAGS.image_size,
@@ -356,12 +362,14 @@ def run_one_epoch(
             if getattr(FLAGS, 'slimmable_training', False):
                 for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
                     for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
-                        model.apply(lambda m: setattr(m, 'width_mult', width_mult))
-                        model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
-                        loss = forward_loss(
-                            model, criterion, input, target,
-                            meters[str(width_mult)+str(bitwidth)])
-                        loss.backward()
+                        for bitactiv in sorted(FLAGS.bitactiv_list, reverse=True):
+                            model.apply(lambda m: setattr(m, 'width_mult', width_mult))
+                            model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
+                            model.apply(lambda m: setattr(m, 'bitactiv', bitactiv))
+                            loss = forward_loss(
+                                model, criterion, input, target,
+                                meters[str(width_mult)+str(bitwidth)+str(bitactiv)])
+                            loss.backward()
             else:
                 loss, _ = forward_loss(
                     model, criterion, input, target, meters)
@@ -380,21 +388,24 @@ def run_one_epoch(
             if getattr(FLAGS, 'slimmable_training', False):
                 for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
                     for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
-                        model.apply(lambda m: setattr(m, 'width_mult', width_mult))
-                        model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
-                        forward_loss(
-                            model, criterion, input, target,
-                            meters[str(width_mult)+str(bitwidth)])
+                        for bitactiv in sorted(FLAGS.bitactiv_list, reverse=True):
+                            model.apply(lambda m: setattr(m, 'width_mult', width_mult))
+                            model.apply(lambda m: setattr(m, 'bitwidth', bitwidth))
+                            model.apply(lambda m: setattr(m, 'bitactiv', bitactiv))
+                            forward_loss(
+                                model, criterion, input, target,
+                                meters[str(width_mult)+str(bitwidth)+str(bitactiv)])
             else:
                 forward_loss(model, criterion, input, target, meters)
     if getattr(FLAGS, 'slimmable_training', False):
         for width_mult in sorted(FLAGS.width_mult_list, reverse=True):
             for bitwidth in sorted(FLAGS.bitwidth_list, reverse=True):
-                results = flush_scalar_meters(meters[str(width_mult)+str(bitwidth)])
-                print('{:.1f}s\t{:7s}{:6s}{}\t{}/{}: '.format(
-                    time.time() - t_start, phase, str(width_mult), str(bitwidth), epoch,
-                    FLAGS.num_epochs) + ', '.join('{}: {:.3f}'.format(k, v)
-                                                    for k, v in results.items()))
+                for bitactiv in sorted(FLAGS.bitactiv_list, reverse=True):
+                    results = flush_scalar_meters(meters[str(width_mult)+str(bitwidth)+str(bitactiv)])
+                    print('{:.1f}s\t{:7s}{:6s}{} {}\t{}/{}: '.format(
+                        time.time() - t_start, phase, str(width_mult), str(bitwidth), str(bitactiv), epoch,
+                        FLAGS.num_epochs) + ', '.join('{}: {:.3f}'.format(k, v)
+                                                        for k, v in results.items()))
     else:
         results = flush_scalar_meters(meters)
         print('{:.1f}s\t{:7s}\t{}/{}: '.format(

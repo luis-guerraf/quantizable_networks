@@ -13,11 +13,11 @@ class BasicBlock(nn.Module):
 
         layers = [
             SlimmableQuantizableConv2d(inp, outp, 3, stride, 1, bias=False),
-            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             nn.ReLU(inplace=True),
 
             SlimmableQuantizableConv2d(outp, outp, 3, 1, 1, bias=False),
-            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
         ]
         self.body = nn.Sequential(*layers)
 
@@ -25,7 +25,7 @@ class BasicBlock(nn.Module):
         if not self.residual_connection:
             self.shortcut = nn.Sequential(
                 SlimmableQuantizableConv2d(inp, outp, 1, stride=stride, bias=False),
-                SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+                SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             )
         self.post_relu = nn.ReLU(inplace=True)
 
@@ -48,15 +48,15 @@ class Block(nn.Module):
         midp = [i//4 for i in outp]
         layers = [
             SlimmableQuantizableConv2d(inp, midp, 1, 1, 0, bias=False),
-            SwitchableBatchNorm2d(midp, len(FLAGS.bitwidth_list)),
+            SwitchableBatchNorm2d(midp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             nn.ReLU(inplace=True),
 
             SlimmableQuantizableConv2d(midp, midp, 3, stride, 1, bias=False),
-            SwitchableBatchNorm2d(midp, len(FLAGS.bitwidth_list)),
+            SwitchableBatchNorm2d(midp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             nn.ReLU(inplace=True),
 
             SlimmableQuantizableConv2d(midp, outp, 1, 1, 0, bias=False),
-            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
         ]
         self.body = nn.Sequential(*layers)
 
@@ -64,7 +64,7 @@ class Block(nn.Module):
         if not self.residual_connection:
             self.shortcut = nn.Sequential(
                 SlimmableQuantizableConv2d(inp, outp, 1, stride=stride, bias=False),
-                SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
+                SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             )
         self.post_relu = nn.ReLU(inplace=True)
 
@@ -105,7 +105,7 @@ class Model(nn.Module):
                 SlimmableQuantizableConv2d(
                     [3 for _ in range(len(channels))], channels, 7, 2, 3,
                     bias=False),
-                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list)),
+                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
                 nn.ReLU(inplace=True),
                 nn.MaxPool2d(3, 2, 1),
             )

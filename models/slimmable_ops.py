@@ -1,29 +1,33 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .quantize_op import Quantize
+from .quantize_op import DoReFa_A, DoReFa_W
 from utils.config import FLAGS
 
 
 class SwitchableBatchNorm2d(nn.Module):
-    def __init__(self, num_features_list, num_bitwidths):
+    def __init__(self, num_features_list, num_bitwidths, num_bitactiv):
         super(SwitchableBatchNorm2d, self).__init__()
         self.num_features_list = num_features_list
         self.num_features = max(num_features_list)
         bns = []
         for _ in range(num_bitwidths):
-            for i in num_features_list:
-                bns.append(nn.BatchNorm2d(i))
+            for _ in range(num_bitactiv):
+                for i in num_features_list:
+                    bns.append(nn.BatchNorm2d(i))
         self.bn = nn.ModuleList(bns)
         self.width_mult = max(FLAGS.width_mult_list)
         self.ignore_model_profiling = True
         self.bitwidth = max(FLAGS.bitwidth_list)
+        self.bitactiv = max(FLAGS.bitactiv_list)
         self.num_widths = len(FLAGS.width_mult_list)
+        self.chunks = len(FLAGS.width_mult_list)*len(FLAGS.bitwidth_list)
 
     def forward(self, input):
         idx_b = FLAGS.bitwidth_list.index(self.bitwidth)
+        idx_a = FLAGS.bitactiv_list.index(self.bitactiv)
         idx_w = FLAGS.width_mult_list.index(self.width_mult)
-        y = self.bn[self.num_widths*idx_b + idx_w](input)
+        y = self.bn[self.chunks*idx_a + self.num_widths*idx_b + idx_w](input)
         return y
 
 
@@ -42,14 +46,22 @@ class SlimmableQuantizableConv2d(nn.Conv2d):
             self.groups_list = [1 for _ in range(len(in_channels_list))]
         self.width_mult = max(FLAGS.width_mult_list)
         self.bitwidth = max(FLAGS.bitwidth_list)
+        self.bitactiv = max(FLAGS.bitactiv_list)
 
     def forward(self, input):
         # Quantizable settings (quantize before slim)
         idx_b = FLAGS.bitwidth_list.index(self.bitwidth)
+        idx_a = FLAGS.bitactiv_list.index(self.bitactiv)
         if not hasattr(self.weight, 'org'):
             self.weight.org = self.weight.data.clone()
+
+        # Activation function
+        if (input.size(1) != 3):
+            if FLAGS.bitactiv_list[idx_a] != 32:
+                input = DoReFa_A.apply(input, FLAGS.bitactiv_list[idx_a])
+
         if FLAGS.bitwidth_list[idx_b] != 32:
-            self.weight.data = Quantize.apply(self.weight.org, FLAGS.bitwidth_list[idx_b])
+            self.weight.data = DoReFa_W.apply(self.weight.org, FLAGS.bitwidth_list[idx_b])
         else:
             # They must be copied, otherwise they'll use the previous quantized
             self.weight.data.copy_(self.weight.org)
@@ -80,14 +92,21 @@ class SlimmableQuantizableLinear(nn.Linear):
         self.out_features_list = out_features_list
         self.width_mult = max(FLAGS.width_mult_list)
         self.bitwidth = max(FLAGS.bitwidth_list)
+        self.bitactiv = max(FLAGS.bitactiv_list)
 
     def forward(self, input):
         # Quantizable settings (quantize before slim)
         idx_b = FLAGS.bitwidth_list.index(self.bitwidth)
+        idx_a = FLAGS.bitactiv_list.index(self.bitactiv)
         if not hasattr(self.weight, 'org'):
             self.weight.org = self.weight.data.clone()
+
+        # Activation function
+        if FLAGS.bitactiv_list[idx_a] != 32:
+            input = DoReFa_A.apply(input, FLAGS.bitactiv_list[idx_a])
+
         if FLAGS.bitwidth_list[idx_b] != 32:
-            self.weight.data = Quantize.apply(self.weight.org, FLAGS.bitwidth_list[idx_b])
+            self.weight.data = DoReFa_W.apply(self.weight.org, FLAGS.bitwidth_list[idx_b])
         else:
             # They must be copied, otherwise they'll use the previous quantized
             self.weight.data.copy_(self.weight.org)
@@ -144,7 +163,6 @@ class SlimmableLinear(nn.Linear):
         self.in_features_list = in_features_list
         self.out_features_list = out_features_list
         self.width_mult = max(FLAGS.width_mult_list)
-        self.bitwidth = 0
 
     def forward(self, input):
         idx = FLAGS.width_mult_list.index(self.width_mult)
