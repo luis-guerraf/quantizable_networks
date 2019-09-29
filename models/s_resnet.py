@@ -80,12 +80,10 @@ class Block(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, num_classes=1000, input_size=224):
+    def __init__(self, num_classes=1000):
         super(Model, self).__init__()
 
         self.features = []
-        # head
-        assert input_size % 32 == 0
 
         # setting of inverted residual blocks
         self.block_setting_dict = {
@@ -131,8 +129,7 @@ class Model(nn.Module):
                         self.features.append(Block(channels, outp, 1))
                 channels = outp
 
-        avg_pool_size = input_size//32
-        self.features.append(nn.AvgPool2d(avg_pool_size))
+        self.features.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         # make it nn.Sequential
         self.features = nn.Sequential(*self.features)

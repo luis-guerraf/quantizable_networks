@@ -13,20 +13,19 @@ from utils.config import FLAGS
 from utils.meters import ScalarMeter, flush_scalar_meters
 
 if FLAGS.model == 'models.s_resnet':
-    save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_" + \
-                    '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" \
-                    '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
-                    + "_".join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
+    save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_"
 else:
-    save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + "_" + \
-                    '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" \
-                    '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
-                    + "_".join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
+    save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + "_"
+save_filename += '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" + \
+                 '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
+                 '_'.join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
+
+img_size = {'cifar10': 32, 'cifar100': 32, 'tiny_imagenet': 64, 'imagenet': 224}
 
 def get_model():
     """get model"""
     model_lib = importlib.import_module(FLAGS.model)
-    model = model_lib.Model(FLAGS.num_classes, input_size=FLAGS.image_size)
+    model = model_lib.Model(FLAGS.num_classes)
     return model
 
 
@@ -314,11 +313,11 @@ def profiling(model, use_cuda):
                     verbose = (width_mult == max(FLAGS.width_mult_list)) and (bitwidth == max(FLAGS.bitwidth_list)) and \
                                 (bitactiv == max(FLAGS.bitactiv_list))
                     model_profiling(
-                        model, FLAGS.image_size, FLAGS.image_size,
+                        model, img_size[FLAGS.dataset], img_size[FLAGS.dataset],
                         verbose=getattr(FLAGS, 'model_profiling_verbose', verbose))
     else:
         model_profiling(
-            model, FLAGS.image_size, FLAGS.image_size,
+            model, img_size[FLAGS.dataset], img_size[FLAGS.dataset],
             verbose=getattr(FLAGS, 'model_profiling_verbose', True))
 
 
