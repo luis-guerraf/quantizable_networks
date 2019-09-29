@@ -12,11 +12,14 @@ class BasicBlock(nn.Module):
         assert stride in [1, 2]
 
         layers = [
+            # The input to a quantized conv can't come from a relu
+            # It has to in [-1,1], because the output will be in [-1,1]
             SlimmableQuantizableConv2d(inp, outp, 3, stride, 1, bias=False),
-            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             nn.ReLU(inplace=True),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
 
             SlimmableQuantizableConv2d(outp, outp, 3, 1, 1, bias=False),
+            nn.ReLU(inplace=True),
             SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
         ]
         self.body = nn.Sequential(*layers)
@@ -27,7 +30,6 @@ class BasicBlock(nn.Module):
                 SlimmableQuantizableConv2d(inp, outp, 1, stride=stride, bias=False),
                 SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             )
-        self.post_relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
         if self.residual_connection:
@@ -36,7 +38,6 @@ class BasicBlock(nn.Module):
         else:
             res = self.body(x)
             res += self.shortcut(x)
-        res = self.post_relu(res)
         return res
 
 
@@ -103,9 +104,9 @@ class Model(nn.Module):
                 SlimmableQuantizableConv2d(
                     [3 for _ in range(len(channels))], channels, 7, 2, 3,
                     bias=False),
-                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
                 nn.ReLU(inplace=True),
                 nn.MaxPool2d(3, 2, 1),
+                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
             )
         )
 

@@ -55,11 +55,12 @@ class SlimmableQuantizableConv2d(nn.Conv2d):
         if not hasattr(self.weight, 'org'):
             self.weight.org = self.weight.data.clone()
 
-        # Activation function
+        # Activation Quantization
         if (input.size(1) != 3):
             if FLAGS.bitactiv_list[idx_a] != 32:
                 input = DoReFa_A.apply(input, FLAGS.bitactiv_list[idx_a])
 
+        # Weight Quantization
         if FLAGS.bitwidth_list[idx_b] != 32:
             self.weight.data = DoReFa_W.apply(self.weight.org, FLAGS.bitwidth_list[idx_b])
         else:
