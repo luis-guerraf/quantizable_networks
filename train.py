@@ -11,6 +11,7 @@ from utils.model_profiling import model_profiling
 from utils.transforms import Lighting
 from utils.config import FLAGS
 from utils.meters import ScalarMeter, flush_scalar_meters
+from models.slimmable_ops import SwitchableBatchNorm2d
 
 if FLAGS.model == 'models.s_resnet':
     save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_"
@@ -440,7 +441,8 @@ def train_val_test():
                 new_checkpoint[key_new] = checkpoint[key_old]
                 print('remap {} to {}'.format(key_new, key_old))
             checkpoint = new_checkpoint
-        model_wrapper.load_state_dict(checkpoint)
+        model_wrapper.load_state_dict(checkpoint, strict=False)
+        replicate_SwitchableBatchNorm_params(model_wrapper)
         print('Loaded model {}.'.format(FLAGS.pretrained))
     optimizer = get_optimizer(model_wrapper)
     # check resume training
@@ -520,6 +522,20 @@ def train_val_test():
                 'meters': (train_meters, val_meters),
             },
             os.path.join(FLAGS.log_dir, 'latest_checkpoint' + save_filename))
+    return
+
+
+def replicate_SwitchableBatchNorm_params(m):
+    for subm in m.modules():
+        if (isinstance(subm, SwitchableBatchNorm2d)):
+            for i, bn in enumerate(subm.bn):
+                if i != 0:
+                    bn.weight.data.copy_(subm.bn[0].weight.data)
+                    bn.bias.data.copy_(subm.bn[0].bias.data)
+                    bn.running_mean.data.copy_(subm.bn[0].running_mean.data)
+                    bn.running_var.data.copy_(subm.bn[0].running_var.data)
+                    bn.num_batches_tracked.data.copy_(subm.bn[0].num_batches_tracked.data)
+
     return
 
 

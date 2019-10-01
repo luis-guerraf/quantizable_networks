@@ -9,7 +9,7 @@ gpu_type: "nvidia-geforce-gtx-1080"
 dataset: tiny_imagenet
 data_transforms: tiny_imagenet
 data_loader: tiny_imagenet
-dataset_dir: ../Datasets/IMAGENET/tiny-imagenet-200
+dataset_dir: ../../Datasets/IMAGENET/tiny-imagenet-200
 data_loader_workers: 8
 
 # info
@@ -54,4 +54,4 @@ bitactiv_list: [2]
 num_gpus_per_job: 1
 # test pretrained
 #test_only: True
-#pretrained: logs/s_resnet50_0.25_0.5_0.75_1.0.pt
+pretrained: logs/best_model_tiny_imagenet_models.s_resnet18_1.0__3232.pt
