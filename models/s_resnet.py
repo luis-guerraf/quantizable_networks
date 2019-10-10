@@ -99,11 +99,15 @@ class Model(nn.Module):
         feats = [64, 128, 256, 512]
         channels = [
             int(64 * width_mult) for width_mult in FLAGS.width_mult_list]
+
+        if num_classes == 200:
+            conv1 = SlimmableQuantizableConv2d([3 for _ in range(len(channels))], channels, 3, 1, 1, bias=False)
+        else:
+            conv1 = SlimmableQuantizableConv2d([3 for _ in range(len(channels))], channels, 7, 2, 3, bias=False)
+
         self.features.append(
             nn.Sequential(
-                SlimmableQuantizableConv2d(
-                    [3 for _ in range(len(channels))], channels, 7, 2, 3,
-                    bias=False),
+                conv1,
                 nn.ReLU(inplace=True),
                 nn.MaxPool2d(3, 2, 1),
                 SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
