@@ -21,8 +21,8 @@ save_filename += '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" + \
                  '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
                  '_'.join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
 
-img_size = {'cifar10': 32, 'cifar100': 32, 'tiny_imagenet': 64, 'imagenet': 224}
-num_classes = {'cifar10': 10, 'cifar100': 100, 'tiny_imagenet': 200, 'imagenet': 1000}
+img_size = {'cifar10': 32, 'cifar100': 32, 'tiny_imagenet': 64, 'imagenet1k': 224}
+num_classes = {'cifar10': 10, 'cifar100': 100, 'tiny_imagenet': 200, 'imagenet1k': 1000}
 
 def get_model():
     """get model"""

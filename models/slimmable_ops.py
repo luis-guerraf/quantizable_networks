@@ -55,12 +55,18 @@ class SlimmableQuantizableConv2d(nn.Conv2d):
         if not hasattr(self.weight, 'org'):
             self.weight.org = self.weight.data.clone()
 
+        # Express training
+        if FLAGS.bitactiv_list[idx_a] == 64 and FLAGS.bitwidth_list[idx_b] == 64 \
+            and self.width_mult == 1.0:
+            return nn.functional.conv2d(input, self.weight, self.bias, self.stride, self.padding,
+                                        self.dilation, self.groups)
+
         # Activation Quantization
         if (input.size(1) != 3):
             if FLAGS.bitactiv_list[idx_a] == 1:
                 input = Binarize_A.apply(input)
             else:
-                input = LogQuant_A(input, FLAGS.bitactiv_list[idx_a], 'two_sided')
+                input = TanhQuant_A(input, FLAGS.bitactiv_list[idx_a])
 
         # Weight Quantization
         if FLAGS.bitwidth_list[idx_b] == 1:
@@ -102,6 +108,11 @@ class SlimmableQuantizableLinear(nn.Linear):
         idx_a = FLAGS.bitactiv_list.index(self.bitactiv)
         if not hasattr(self.weight, 'org'):
             self.weight.org = self.weight.data.clone()
+
+        # Express training
+        if FLAGS.bitactiv_list[idx_a] == 64 and FLAGS.bitwidth_list[idx_b] == 64 \
+            and self.width_mult == 1.0:
+            return nn.functional.linear(input, self.weight, self.bias)
 
         # Activation function
         if FLAGS.bitactiv_list[idx_a] == 1:
