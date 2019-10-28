@@ -99,6 +99,17 @@ def LogQuant_A(x, numBits, bounds):
     return w_q
 
 
+def LogQuant_W(x, numBits):
+    x = torch.clamp(x, min=-1.0, max=1.0)
+
+    if numBits == 32:
+        return x
+
+    w_q = LogQuant.apply(x, numBits, 'two_sided')
+
+    return w_q
+
+
 class LogQuant(Function):
     @staticmethod
     def forward(ctx, x, numBits, bounds):
