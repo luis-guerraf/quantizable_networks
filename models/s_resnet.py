@@ -3,7 +3,7 @@ import math
 
 
 from .slimmable_ops import SwitchableBatchNorm2d
-from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableQuantizableLinear, SlimmableLinear
+from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableConv2d, SlimmableLinear
 from utils.config import FLAGS
 
 class BasicBlock(nn.Module):
@@ -101,9 +101,9 @@ class Model(nn.Module):
             int(64 * width_mult) for width_mult in FLAGS.width_mult_list]
 
         if num_classes == 200:
-            conv1 = SlimmableQuantizableConv2d([3 for _ in range(len(channels))], channels, 3, 1, 1, bias=False)
+            conv1 = SlimmableConv2d([3 for _ in range(len(channels))], channels, 3, 1, 1, bias=False)
         else:
-            conv1 = SlimmableQuantizableConv2d([3 for _ in range(len(channels))], channels, 7, 2, 3, bias=False)
+            conv1 = SlimmableConv2d([3 for _ in range(len(channels))], channels, 7, 2, 3, bias=False)
 
         self.features.append(
             nn.Sequential(

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 from .slimmable_ops import SwitchableBatchNorm2d
-from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableQuantizableLinear
+from .slimmable_ops import SlimmableQuantizableConv2d, SlimmableConv2d, SlimmableLinear
 from utils.config import FLAGS
 
 
@@ -31,12 +31,12 @@ class DepthwiseSeparableConv(nn.Module):
         layers = [
             SlimmableQuantizableConv2d(
                 inp, inp, 3, stride, 1, groups_list=inp, bias=False),
-            SwitchableBatchNorm2d(inp, len(FLAGS.bitwidth_list)),
             nn.ReLU6(inplace=True),
+            SwitchableBatchNorm2d(inp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
 
             SlimmableQuantizableConv2d(inp, outp, 1, 1, 0, bias=False),
-            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list)),
             nn.ReLU6(inplace=True),
+            SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
         ]
         self.body = nn.Sequential(*layers)
 
@@ -45,7 +45,7 @@ class DepthwiseSeparableConv(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, num_classes=1000, input_size=224):
+    def __init__(self, num_classes=1000):
         super(Model, self).__init__()
 
         # setting of inverted residual blocks
@@ -61,20 +61,22 @@ class Model(nn.Module):
         self.features = []
 
         # head
-        assert input_size % 32 == 0
         channels = [
             _make_divisible(32 * width_mult)
             for width_mult in FLAGS.width_mult_list]
         self.outp = [
             _make_divisible(1024 * width_mult)
             for width_mult in FLAGS.width_mult_list]
-        first_stride = 2
+
+        if num_classes == 200:
+            conv1 = SlimmableConv2d([3 for _ in range(len(channels))], channels, 3, 1, 1, bias=False)
+        else:
+            conv1 = SlimmableConv2d([3 for _ in range(len(channels))], channels, 3, 2, 1, bias=False)
+
         self.features.append(
             nn.Sequential(
-                SlimmableQuantizableConv2d(
-                    [3 for _ in range(len(channels))], channels, 3,
-                    first_stride, 1, bias=False),
-                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list)),
+                conv1,
+                SwitchableBatchNorm2d(channels, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
                 nn.ReLU6(inplace=True))
         )
 
@@ -92,15 +94,14 @@ class Model(nn.Module):
                         DepthwiseSeparableConv(channels, outp, 1))
                 channels = outp
 
-        avg_pool_size = input_size//32
-        self.features.append(nn.AvgPool2d(avg_pool_size))
+        self.features.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         # make it nn.Sequential
         self.features = nn.Sequential(*self.features)
 
         # classifier
         self.classifier = nn.Sequential(
-            SlimmableQuantizableLinear(
+            SlimmableLinear(
                 self.outp,
                 [num_classes for _ in range(len(self.outp))]
             )
