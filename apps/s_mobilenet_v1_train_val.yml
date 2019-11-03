@@ -48,8 +48,9 @@ log_dir: logs/
 slimmable_training: True
 model: models.s_mobilenet_v1
 width_mult: 1.0
-width_mult_list: [0.25, 0.5, 0.75, 1.0]
-bitwidth_list: [32]
+width_mult_list: [1.0]
+bitwidth_list: [64]
+bitactiv_list: [64]
 num_gpus_per_job: 1
 data_transforms: imagenet1k_mobile
 lr: 0.045

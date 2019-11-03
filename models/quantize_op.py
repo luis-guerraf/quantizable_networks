@@ -6,7 +6,9 @@ class Binarize_A(Function):
     @staticmethod
     def forward(ctx, x):
         ctx.save_for_backward(x)
-        return x.sign()
+        x = x.sign()
+        x[x == 0] = -1
+        return x
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -15,30 +17,24 @@ class Binarize_A(Function):
         grad_output[input < -1] = 0
         return grad_output
 
-
-class Binarize_W(Function):
-    @staticmethod
-    def forward(ctx, x):
-        return x.sign()
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output
+# NOTE: Modifying this gradients is meaningless, because these are the gradients of self.weight.org
+# not self.weight. To suppress the gradients in self.weight do it directly in the gradients vector of
+# self.weight
+def Binarize_W(x):
+    return x.sign()
 
 
 def TanhQuant_A(x, numBits):
     # Assumed symmetric distribution of weights (i.e. range [-val, val])
-    if numBits == 32:
-        # Just bring to range [-1, 1]
-        return torch.tanh(x).div(torch.max(torch.abs(torch.tanh(x))))
 
     # Bring to range [0, 1] reducing impact of large values
     w_q = torch.tanh(x).div(2 * torch.max(torch.abs(torch.tanh(x)))) + 0.5
 
-    # Quantize to k bits in range [0, 1]
-    w_q = w_q.mul(2 ** numBits - 1)
-    w_q = RoundNoGradient.apply(w_q)
-    w_q = w_q.div(2 ** numBits - 1)
+    if numBits != 32:
+        # Quantize to k bits in range [0, 1]
+        w_q = w_q.mul(2 ** numBits - 1)
+        w_q = RoundNoGradient.apply(w_q)
+        w_q = w_q.div(2 ** numBits - 1)
 
     # Affine to bring to range [-1, 1]
     w_q *= 2
@@ -48,11 +44,11 @@ def TanhQuant_A(x, numBits):
 
 
 def DoReFa_A(x, numBits):
-    # DoReFa is the same than Half-wave Gaussian (uniform) Quantizer. They clip to [0,1]
-    w_q = torch.clamp(x, min=0.0, max=1.0)
-
     if numBits == 32:
         return x
+
+    # DoReFa is the same than Half-wave Gaussian (uniform) Quantizer. They clip to [0,1]
+    w_q = torch.clamp(x, min=0.0, max=1.0)
 
     # Quantize to k bits in range [0, 1]
     w_q = w_q.mul(2 ** numBits - 1)
@@ -86,13 +82,13 @@ def DoReFa_W(x, numBits):
 
 
 def LogQuant_A(x, numBits, bounds):
+    if numBits == 32:
+        return x
+
     if bounds == 'two_sided':
         x = torch.clamp(x, min=-1.0, max=1.0)
     elif bounds == 'one_sided':
         x = torch.clamp(x, min=0, max=1.0)
-
-    if numBits == 32:
-        return x
 
     w_q = LogQuant.apply(x, numBits, bounds)
 
@@ -100,11 +96,12 @@ def LogQuant_A(x, numBits, bounds):
 
 
 def LogQuant_W(x, numBits):
-    x = torch.clamp(x, min=-1.0, max=1.0)
-
     if numBits == 32:
         return x
 
+    x = torch.clamp(x, min=-1.0, max=1.0)
+
+    x = x.div(torch.max(torch.abs(x)))
     w_q = LogQuant.apply(x, numBits, 'two_sided')
 
     return w_q
@@ -116,8 +113,11 @@ class LogQuant(Function):
         s = torch.sign(x)
         s[s == 0] = 1
 
-        min_vals = {2: 0.33, 3: 0.15, 4: 0.07, 5: 0.05, 6: 0.03}
-        min = min_vals[numBits] if numBits <= 6 else 0.02
+        if bounds == 'two_sided':
+            min_vals = {2: 0.33, 3: 0.15, 4: 0.03}
+            min = min_vals[numBits] if numBits <= 4 else 0.03
+        elif bounds == 'one_sided':
+            min = 0.03
 
         w_q = torch.clamp(torch.abs(x), min=min)        # Pick a min not to close to zero
         w_q = torch.log2(w_q)

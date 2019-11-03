@@ -31,12 +31,12 @@ class DepthwiseSeparableConv(nn.Module):
         layers = [
             SlimmableQuantizableConv2d(
                 inp, inp, 3, stride, 1, groups_list=inp, bias=False),
-            nn.ReLU6(inplace=True),
             SwitchableBatchNorm2d(inp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
+            nn.ReLU6(inplace=True),
 
             SlimmableQuantizableConv2d(inp, outp, 1, 1, 0, bias=False),
-            nn.ReLU6(inplace=True),
             SwitchableBatchNorm2d(outp, len(FLAGS.bitwidth_list), len(FLAGS.bitactiv_list)),
+            nn.ReLU6(inplace=True),
         ]
         self.body = nn.Sequential(*layers)
 

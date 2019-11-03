@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .quantize_op import TanhQuant_A, LogQuant_A, DoReFa_A, DoReFa_W, Binarize_A, Binarize_W
+from .quantize_op import TanhQuant_A, LogQuant_A, LogQuant_W, DoReFa_A, DoReFa_W, Binarize_A, Binarize_W
 from utils.config import FLAGS
 
 
@@ -63,16 +63,18 @@ class SlimmableQuantizableConv2d(nn.Conv2d):
 
         # Activation Quantization
         if (input.size(1) != 3):
-            if FLAGS.bitactiv_list[idx_a] == 1:
-                input = Binarize_A.apply(input)
-            else:
-                input = TanhQuant_A(input, FLAGS.bitactiv_list[idx_a])
+            if FLAGS.bitactiv_list[idx_a] != 64:
+                if FLAGS.bitactiv_list[idx_a] == 1:
+                    input = Binarize_A.apply(input)
+                else:
+                    input = DoReFa_A(input, FLAGS.bitactiv_list[idx_a])
 
         # Weight Quantization
-        if FLAGS.bitwidth_list[idx_b] == 1:
-            self.weight.data = Binarize_W.apply(self.weight.org)
-        else:
-            self.weight.data = DoReFa_W(self.weight.org, FLAGS.bitwidth_list[idx_b])
+        if FLAGS.bitwidth_list[idx_b] != 64:
+            if FLAGS.bitwidth_list[idx_b] == 1:
+                self.weight.data = Binarize_W(self.weight.org)
+            else:
+                self.weight.data = DoReFa_W(self.weight.org, FLAGS.bitwidth_list[idx_b])
 
         # Slimmable settings
         idx_w = FLAGS.width_mult_list.index(self.width_mult)
@@ -121,7 +123,7 @@ class SlimmableQuantizableLinear(nn.Linear):
             input = DoReFa_A(input, FLAGS.bitactiv_list[idx_a])
 
         if FLAGS.bitwidth_list[idx_b] == 1:
-            self.weight.data = Binarize_W.apply(self.weight.org)
+            self.weight.data = Binarize_W(self.weight.org)
         else:
             self.weight.data = DoReFa_W(self.weight.org, FLAGS.bitwidth_list[idx_b])
 
