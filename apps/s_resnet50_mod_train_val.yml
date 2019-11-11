@@ -6,10 +6,10 @@ memory_per_job: 380  # memory requirement each job need
 gpu_type: "nvidia-geforce-gtx-1080"
 
 # data
-dataset: tiny_imagenet
-data_transforms: tiny_imagenet
-data_loader: tiny_imagenet
-dataset_dir: ../../Datasets/IMAGENET/tiny-imagenet-200
+dataset: imagenet1k
+data_transforms: imagenet1k_basic
+data_loader: imagenet1k_basic
+dataset_dir: ../../Datasets/IMAGENET/ImageNet_smallSize256
 data_loader_workers: 8
 
 # info
@@ -17,15 +17,15 @@ topk: [1]
 num_epochs: 100
 
 # optimizer
-optimizer: sgd
+optimizer: adam
 momentum: 0.9
 weight_decay: 0.0001
 nesterov: True
 
 # lr
-lr: 0.1
+lr: 0.0005
 lr_scheduler: multistep
-multistep_lr_milestones: [30, 60, 90]
+multistep_lr_milestones: [20, 30, 40]
 multistep_lr_gamma: 0.1
 
 # model profiling
@@ -54,4 +54,4 @@ bitactiv_list: [2]
 num_gpus_per_job: 1
 # test pretrained
 #test_only: True
-pretrained: logs/best_model_tiny_imagenet_models.s_resnet18_1.0__3232.pt
+pretrained: logs/best_model_imagenet1k_models.s_resnet18_1.0__6464.pt

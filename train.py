@@ -254,6 +254,8 @@ def get_optimizer(model):
                     'nesterov': FLAGS.nesterov}
             model_params.append(item)
         optimizer = torch.optim.SGD(model_params)
+    elif FLAGS.optimizer == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), FLAGS.lr)
     else:
         try:
             optimizer_lib = importlib.import_module(FLAGS.optimizer)
