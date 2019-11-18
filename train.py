@@ -378,14 +378,7 @@ def run_one_epoch(
                     model, criterion, input, target, meters)
                 loss.backward()
 
-            # Optimize real value weights
-            for p in list(model.parameters()):
-                if hasattr(p,'org'):
-                    p.data.copy_(p.org)
             optimizer.step()
-            for p in list(model.parameters()):
-                if hasattr(p,'org'):
-                    p.org.copy_(p.data)
 
         else:
             if getattr(FLAGS, 'slimmable_training', False):

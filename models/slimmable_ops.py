@@ -49,32 +49,15 @@ class SlimmableQuantizableConv2d(nn.Conv2d):
         self.bitactiv = max(FLAGS.bitactiv_list)
 
     def forward(self, input):
-        # Quantizable settings (quantize before slim)
+        # Quantizable settings (slim before quantize)
         idx_b = FLAGS.bitwidth_list.index(self.bitwidth)
         idx_a = FLAGS.bitactiv_list.index(self.bitactiv)
-        if not hasattr(self.weight, 'org'):
-            self.weight.org = self.weight.data.clone()
 
         # Express training
         if FLAGS.bitactiv_list[idx_a] == 64 and FLAGS.bitwidth_list[idx_b] == 64 \
             and self.width_mult == 1.0:
             return nn.functional.conv2d(input, self.weight, self.bias, self.stride, self.padding,
                                         self.dilation, self.groups)
-
-        # Activation Quantization
-        if (input.size(1) != 3):
-            if FLAGS.bitactiv_list[idx_a] != 64:
-                if FLAGS.bitactiv_list[idx_a] == 1:
-                    input = Binarize_A.apply(input)
-                else:
-                    input = DoReFa_A(input, FLAGS.bitactiv_list[idx_a])
-
-        # Weight Quantization
-        if FLAGS.bitwidth_list[idx_b] != 64:
-            if FLAGS.bitwidth_list[idx_b] == 1:
-                self.weight.data = Binarize_W(self.weight.org)
-            else:
-                self.weight.data = DoReFa_W(self.weight.org, FLAGS.bitwidth_list[idx_b])
 
         # Slimmable settings
         idx_w = FLAGS.width_mult_list.index(self.width_mult)
@@ -88,6 +71,22 @@ class SlimmableQuantizableConv2d(nn.Conv2d):
             bias = self.bias[:self.out_channels]
         else:
             bias = self.bias
+
+        # Activation Quantization
+        if (input.size(1) != 3):
+            if FLAGS.bitactiv_list[idx_a] != 64:
+                if FLAGS.bitactiv_list[idx_a] == 1:
+                    input = Binarize_A.apply(input)
+                else:
+                    input = DoReFa_A(input, FLAGS.bitactiv_list[idx_a])
+
+        # Weight Quantization
+        if FLAGS.bitwidth_list[idx_b] != 64:
+            if FLAGS.bitwidth_list[idx_b] == 1:
+                weight = Binarize_W.apply(weight)
+            else:
+                weight = DoReFa_W(weight, FLAGS.bitwidth_list[idx_b])
+
         y = nn.functional.conv2d(
             input, weight, bias, self.stride, self.padding,
             self.dilation, self.groups)
@@ -105,27 +104,14 @@ class SlimmableQuantizableLinear(nn.Linear):
         self.bitactiv = max(FLAGS.bitactiv_list)
 
     def forward(self, input):
-        # Quantizable settings (quantize before slim)
+        # Quantizable settings (slim before quantize)
         idx_b = FLAGS.bitwidth_list.index(self.bitwidth)
         idx_a = FLAGS.bitactiv_list.index(self.bitactiv)
-        if not hasattr(self.weight, 'org'):
-            self.weight.org = self.weight.data.clone()
 
         # Express training
         if FLAGS.bitactiv_list[idx_a] == 64 and FLAGS.bitwidth_list[idx_b] == 64 \
             and self.width_mult == 1.0:
             return nn.functional.linear(input, self.weight, self.bias)
-
-        # Activation function
-        if FLAGS.bitactiv_list[idx_a] == 1:
-            input = Binarize_A.apply(input)
-        else:
-            input = DoReFa_A(input, FLAGS.bitactiv_list[idx_a])
-
-        if FLAGS.bitwidth_list[idx_b] == 1:
-            self.weight.data = Binarize_W(self.weight.org)
-        else:
-            self.weight.data = DoReFa_W(self.weight.org, FLAGS.bitwidth_list[idx_b])
 
         # Slimmable settings
         idx_w = FLAGS.width_mult_list.index(self.width_mult)
@@ -138,6 +124,18 @@ class SlimmableQuantizableLinear(nn.Linear):
             bias = self.bias[:self.out_features]
         else:
             bias = self.bias
+
+        # Activation function
+        if FLAGS.bitactiv_list[idx_a] == 1:
+            input = Binarize_A.apply(input)
+        else:
+            input = DoReFa_A(input, FLAGS.bitactiv_list[idx_a])
+
+        if FLAGS.bitwidth_list[idx_b] == 1:
+            weight = Binarize_W.apply(weight)
+        else:
+            weight = DoReFa_W(weight, FLAGS.bitwidth_list[idx_b])
+
         return nn.functional.linear(input, weight, bias)
 
 
