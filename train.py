@@ -12,6 +12,8 @@ from utils.transforms import Lighting
 from utils.config import FLAGS
 from utils.meters import ScalarMeter, flush_scalar_meters
 from models.slimmable_ops import SwitchableBatchNorm2d
+from torchvision.models.resnet import resnet18
+
 
 if FLAGS.model == 'models.s_resnet':
     save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_"
@@ -440,6 +442,18 @@ def train_val_test():
         replicate_SwitchableBatchNorm_params(model_wrapper)
         print('Loaded model {}.'.format(FLAGS.pretrained))
     optimizer = get_optimizer(model_wrapper)
+    if FLAGS.download:
+        resnet18_pretrained = resnet18(True).state_dict()
+        for k in resnet18_pretrained.keys():
+            if 'bn1' in k:
+                resnet18_pretrained[k.replace('bn1', 'bn1.bn.0')] = resnet18_pretrained.pop(k)
+            if 'bn2' in k:
+                resnet18_pretrained[k.replace('bn2', 'bn2.bn.0')] = resnet18_pretrained.pop(k)
+            if 'downsample.1' in k:
+                resnet18_pretrained[k.replace('downsample.1', 'downsample.1.bn.0')] = resnet18_pretrained.pop(k)
+        model_wrapper.module.load_state_dict(resnet18_pretrained, strict=False)
+        replicate_SwitchableBatchNorm_params(model_wrapper)
+        print('Model downloaded')
     # check resume training
     if os.path.exists(os.path.join(FLAGS.log_dir, 'latest_checkpoint' + save_filename)):
         checkpoint = torch.load(

@@ -23,9 +23,9 @@ weight_decay: 0.0001
 nesterov: True
 
 # lr
-lr: 0.0005
+lr: 0.0001
 lr_scheduler: multistep
-multistep_lr_milestones: [20, 30, 40]
+multistep_lr_milestones: [15, 20]
 multistep_lr_gamma: 0.1
 
 # model profiling
@@ -49,9 +49,9 @@ model: models.s_resnet
 depth: 18
 width_mult: 1.0
 width_mult_list: [1.0]
-bitwidth_list: [32]
+bitwidth_list: [2]
 bitactiv_list: [2]
 num_gpus_per_job: 1
 # test pretrained
 #test_only: True
-pretrained: logs/best_model_imagenet1k_models.s_resnet18_1.0__6464.pt
+download: True
