@@ -60,3 +60,4 @@ num_epochs: 480
 # test pretrained
 #test_only: True
 #pretrained: logs/s_mobilenet_v1_0.25_0.5_0.75_1.0.pt
+download: False
