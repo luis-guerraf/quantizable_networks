@@ -61,10 +61,8 @@ def DoReFa_A(x, numBits):
 
 def DoReFa_W(x, numBits):
     # Assumed symmetric distribution of weights (i.e. range [-val, val])
-
     if numBits == 32:
-        # Just bring to range [-1, 1]
-        return torch.tanh(x).div(torch.max(torch.abs(torch.tanh(x))))
+        return x
 
     # Bring to range [0, 1] reducing impact of large values
     w_q = torch.tanh(x).div(2 * torch.max(torch.abs(torch.tanh(x)))) + 0.5

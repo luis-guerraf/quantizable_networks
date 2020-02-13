@@ -1,3 +1,6 @@
 logs
 data
 *.pyc
+*.txt
+*.pdf
+*.png
