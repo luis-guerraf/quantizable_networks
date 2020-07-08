@@ -19,8 +19,8 @@ if FLAGS.model == 'models.s_resnet':
     save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + str(FLAGS.depth) + "_"
 else:
     save_filename = "_" + FLAGS.dataset + "_" + FLAGS.model + "_"
-save_filename += '_'.join(str(e) for e in FLAGS.width_mult_list) + "__" + \
-                 '_'.join(str(e) for e in FLAGS.bitactiv_list) + "__" \
+save_filename += '_'.join(str(e) for e in FLAGS.width_mult_list) + "_" + \
+                 '_'.join(str(e) for e in FLAGS.bitactiv_list) + "_" \
                  '_'.join(str(e) for e in FLAGS.bitwidth_list) + ".pt"
 
 img_size = {'cifar10': 32, 'cifar100': 32, 'tiny_imagenet': 64, 'imagenet1k': 224}
@@ -444,14 +444,16 @@ def train_val_test():
     optimizer = get_optimizer(model_wrapper)
     if FLAGS.download:
         resnet18_pretrained = resnet18(True).state_dict()
+        temp_resnet = {}
         for k in resnet18_pretrained.keys():
+            temp_resnet[k] = resnet18_pretrained[k]
             if 'bn1' in k:
-                resnet18_pretrained[k.replace('bn1', 'bn1.bn.0')] = resnet18_pretrained.pop(k)
+                temp_resnet[k.replace('bn1', 'bn1.bn.0')] = temp_resnet.pop(k)
             if 'bn2' in k:
-                resnet18_pretrained[k.replace('bn2', 'bn2.bn.0')] = resnet18_pretrained.pop(k)
+                temp_resnet[k.replace('bn2', 'bn2.bn.0')] = temp_resnet.pop(k)
             if 'downsample.1' in k:
-                resnet18_pretrained[k.replace('downsample.1', 'downsample.1.bn.0')] = resnet18_pretrained.pop(k)
-        model_wrapper.module.load_state_dict(resnet18_pretrained, strict=False)
+                temp_resnet[k.replace('downsample.1', 'downsample.1.bn.0')] = temp_resnet.pop(k)
+        model_wrapper.module.load_state_dict(temp_resnet, strict=False)
         replicate_SwitchableBatchNorm_params(model_wrapper)
         print('Model downloaded')
     # check resume training
@@ -531,6 +533,7 @@ def train_val_test():
                 'meters': (train_meters, val_meters),
             },
             os.path.join(FLAGS.log_dir, 'latest_checkpoint' + save_filename))
+
     return
 
 

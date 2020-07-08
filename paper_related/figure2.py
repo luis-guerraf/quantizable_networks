@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 plt.style.use('seaborn-whitegrid')
 
 f = open("data_self_distillation.txt", "r")
-f2 = open("data_no_distillation.txt", "r")
+f2 = open("data_regular.txt", "r")
 distill_acc_q = []
 distill_acc_r = []
 no_distill_acc_q = []
@@ -41,6 +41,7 @@ ax.plot(no_distill_acc_q, linestyle='dashed')
 ax.set_xlabel('Epoch', fontsize=16)
 ax.set_ylabel('Validation Accuracy (%)', fontsize=16)
 ax.legend(['W:32 A:32 - With SD', 'W:2  A:2 - With SD',
-           'W:32 A:32 - Without SD', 'W:2  A:2 - Without SD'], loc='lower right', fontsize=14)
+           'W:32 A:32 - Without SD', 'W:2  A:2 - Without SD'],
+          loc='lower right', fontsize=14, frameon=True)
 plt.savefig('self_distillation.pdf')
 plt.show()

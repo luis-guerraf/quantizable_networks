@@ -64,6 +64,7 @@ ax.set_ylabel('Validation Accuracy (%)', fontsize=16)
 ax.legend(['W:32 A:32 - With S-BN', 'W:2 A:32 - With S-BN',
            'W:32 A:2 - With S-BN', 'W:2 A:2 - With S-BN',
            'W:32 A:32 - Without S-BN', 'W:2 A:32 - Without S-BN',
-           'W:32 A:2 - Without S-BN', 'W:2 A:2 - Without S-BN'], loc='lower right', fontsize=14)
+           'W:32 A:2 - Without S-BN', 'W:2 A:2 - Without S-BN'],
+          loc='lower right', fontsize=14, frameon=True)
 plt.savefig('non_switchable_batchnorm.pdf')
 plt.show()
